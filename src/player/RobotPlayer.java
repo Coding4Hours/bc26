@@ -12,6 +12,7 @@ public class RobotPlayer {
 		RETURN_TO_KING,
 		BUILD_TRAPS,
 		EXPLORE_AND_ATTACK,
+		FOLLOW_AND_ATTACK,
 		RETURN_TO_KING_THEN_EXPLORE,
 	}
 
@@ -71,6 +72,9 @@ public class RobotPlayer {
 						case EXPLORE_AND_ATTACK:
 							runExploreAndAttack(rc);
 							break;
+						case FOLLOW_AND_ATTACK:
+							runFollowAndAttack(rc);
+							break;
 						case RETURN_TO_KING_THEN_EXPLORE:
 							runReturnToKing(rc);
 
@@ -113,7 +117,7 @@ public class RobotPlayer {
 		int currentCost = rc.getCurrentRatCost();
 
 		MapLocation[] potentialSpawnLocations = rc.getAllLocationsWithinRadiusSquared(rc.getLocation(), 8);
-		boolean spawn = rc.getAllCheese() > currentCost + 2500;
+		boolean spawn = currentCost <= 50 || rc.getAllCheese() > currentCost + 2500;
 
 		for (MapLocation loc : potentialSpawnLocations) {
 			if (spawn && rc.canBuildRat(loc)) {
