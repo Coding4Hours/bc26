@@ -19,11 +19,68 @@ public class RobotPlayer {
 	public static Random rand = new Random(1092);
 
 	public static State currentState = State.INITIALIZE;
+	public static int targetRatId = -1;
+	public static final int CHEESE_FOLLOW_THRESHOLD = 50;
 
 	public static int numRatsSpawned = 0;
 	public static int turnsSinceCarry = 1000;
 
 	public static Direction[] directions = Direction.values();
+
+	public static void runFollowAndAttack(RobotController rc) throws GameActionException {
+		if (targetRatId == -1) {
+			currentState = State.EXPLORE_AND_ATTACK;
+			return;
+		}
+
+		if (!rc.canSenseRobot(targetRatId)) {
+			currentState = State.EXPLORE_AND_ATTACK;
+			targetRatId = -1;
+			return;
+		}
+
+		RobotInfo targetRat = rc.senseRobot(targetRatId);
+		if (targetRat.getRawCheeseAmount() == 0) {
+			currentState = State.EXPLORE_AND_ATTACK;
+			targetRatId = -1;
+			return;
+		}
+
+		// Check for enemy king
+		RobotInfo[] nearbyEnemies = rc.senseNearbyRobots(rc.getType().getVisionRadiusSquared(), rc.getTeam().opponent());
+		for (RobotInfo enemy : nearbyEnemies) {
+			if (enemy.getType().isRatKingType()) {
+				// Found the king, attack it!
+				MapLocation kingLoc = enemy.getLocation();
+				Direction toKing = rc.getLocation().directionTo(kingLoc);
+				if (rc.canAttack(kingLoc)) {
+					rc.attack(kingLoc);
+					return;
+				} else {
+					if (rc.canTurn(toKing)) {
+						rc.turn(toKing);
+					}
+					if (rc.canMove(toKing)) {
+						rc.move(toKing);
+					}
+				}
+				return;
+			}
+		}
+
+		// Follow the rat
+		Direction toTarget = rc.getLocation().directionTo(targetRat.getLocation());
+		if (rc.canTurn(toTarget)) {
+			rc.turn(toTarget);
+		}
+		MapLocation nextLoc = rc.getLocation().add(toTarget);
+		if (rc.canRemoveDirt(nextLoc)) {
+			rc.removeDirt(nextLoc);
+		}
+		if (rc.canMove(toTarget)) {
+			rc.move(toTarget);
+		}
+	}
 
 	public static MapLocation mineLoc = null;
 	public static int numMines = 0;
@@ -360,11 +417,23 @@ public class RobotPlayer {
 		RobotInfo[] nearbyEnemies = rc.senseNearbyRobots(rc.getType().getVisionRadiusSquared(), rc.getTeam().opponent());
 		RobotInfo[] nearbyCats = rc.senseNearbyRobots(rc.getType().getVisionRadiusSquared(), Team.NEUTRAL);
 
+		RobotInfo ratToFollow = null;
+		int maxCheese = 0;
+
 		for (RobotInfo enemy : nearbyEnemies) {
 			if (enemy.getType().isRatKingType()) {
 				// TODO found enemy rat king, message your own king
 				currentState = State.RETURN_TO_KING_THEN_EXPLORE;
 			}
+			if (enemy.getRawCheeseAmount() > maxCheese) {
+				maxCheese = enemy.getRawCheeseAmount();
+				ratToFollow = enemy;
+			}
+		}
+
+		if (ratToFollow != null && maxCheese > CHEESE_FOLLOW_THRESHOLD) {
+			targetRatId = ratToFollow.getID();
+			currentState = State.FOLLOW_AND_ATTACK;
 		}
 
 		int numEnemies = nearbyEnemies.length;
